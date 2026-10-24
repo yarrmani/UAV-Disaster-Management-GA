@@ -1,180 +1,121 @@
-# Autonomous UAV Fleet Surveillance Strategy Engine for Disaster Management
-## Multi-Objective Optimization via Genetic Algorithms (GA)
-
-![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Status: Complete](https://img.shields.io/badge/Status-Optimized-brightgreen.svg)
+# Autonomous UAV Fleet Strategy Engine for Disaster Management
+> Multi-Objective Genetic Algorithm (GA) for autonomous drone fleet path planning, speed selection, and sensor scheduling on a 50x50 disaster grid.
 
 ---
 
-## 1. Project Overview & Problem Statement
-In disaster response scenarios (e.g., post-earthquake devastation, chemical leaks, floods, or active wildfires), autonomous Unmanned Aerial Vehicles (UAVs) provide vital real-time reconnaissance and survivor localization. However, mission planners face a **multi-objective optimization landscape** with conflicting physical and environmental constraints:
-- **Maximization of Area Coverage & Target Detection:** Prioritizing high-value survivor clusters and critical infrastructure sectors.
-- **Minimization of Energy Expenditure:** Limiting aerodynamic propulsion draw and sensor electrical load to preserve battery reserves.
-- **Minimization of Mission Makespan (Time):** Expediting intelligence delivery for rapid emergency intervention.
-- **Minimization of Environmental Hazard Exposure:** Routing UAVs away from severe wind shear, toxic smoke, and radiation pockets.
-- **Dynamic Constraint Handling:** Enforcing strict zero-tolerance No-Fly Zones (NFZs) and battery capacity thresholds.
+## 📌 Project Overview
+In disaster response scenarios, autonomous UAV fleets must quickly locate victims while managing tight battery constraints and avoiding dangerous environments. 
 
-Unlike traditional single-objective algorithms, there is no single rigid solution. This repository provides a modular, object-oriented **Strategy Engine** powered by a tailored **Genetic Algorithm (GA)** featuring custom multi-segment chromosome encodings, specialized spatial genetic operators, and dynamic repair mechanisms.
-
----
-
-## 2. System Architecture & Methodology
-
-```mermaid
-flowchart TD
-    A[Disaster Grid Environment 50x50] --> B[Multi-Segment Chromosome Population]
-    B --> C[Fleet Evaluation & Physics Simulation]
-    C --> D{Constraint Check}
-    D -- NFZ/Boundary Breach --> E[Dynamic Spatial Repair & Clamping]
-    D -- Compliant --> F[Multi-Objective Fitness Function]
-    E --> F
-    F --> G[Tournament Selection with Elitism]
-    G --> H[Spatial Crossover: Geometric Blending & Segment Swap]
-    H --> I[Spatial Mutation: Gaussian Jitter, Speed & Bit-Flip]
-    I --> J{Termination Criteria Reached?}
-    J -- No --> C
-    J -- Yes --> K[Optimal UAV Waypoint Trajectories, Speed & Sensor Schedules]
-```
-
-### 2.1 Multi-Segment Chromosome Representation
-A candidate fleet mission plan is encoded as a hybrid multi-segment chromosome for $N$ UAVs across $K$ waypoints:
-
-$$\mathcal{C} = \Big\{ \mathbf{W} \in \mathbb{R}^{N \times K \times 2}, \; \mathbf{V} \in \{1, 2, 3\}^{N \times (K+1)}, \; \mathbf{S} \in \{0, 1\}^{N \times K} \Big\}$$
-
-1. **Spatial Waypoint Segment ($\mathbf{W}$):** 
-   Continuous 2D coordinates $(x, y) \in [0, 50] \times [0, 50]$ defining navigation waypoints between launch pad $(0, 0)$ and return to base.
-2. **Speed Profile Segment ($\mathbf{V}$):** 
-   Discrete speed selections ($v \in \{1.0, 2.0, 3.0\}$ cells/s) for each flight leg. Higher speed minimizes flight time at the expense of non-linear kinetic energy consumption ($E \propto v^2$).
-3. **Sensor Activation Segment ($\mathbf{S}$):** 
-   Binary power schedule ($s \in \{0, 1\}$). Sensors powered ON perform active radar/optical scanning within radius $R_{sensor} = 4.0$ cells; sensors powered OFF during transits conserve crucial battery energy.
+This project implements an AI Strategy Engine using a customized Genetic Algorithm (GA) to optimize a fleet of **3 UAVs** over a **50x50 hazard grid**. The engine balances four competing operational goals:
+1. **Maximize Coverage:** Scans high-priority disaster clusters.
+2. **Minimize Energy:** Reduces motor propulsion draw and sensor power consumption.
+3. **Minimize Mission Time:** Completes reconnaissance in the shortest flight makespan.
+4. **Avoid Hazards & No-Fly Zones:** 100% collision-free navigation around restricted obstacles and toxic smoke pockets.
 
 ---
 
-### 2.2 Mathematical Formulation of Fitness Function
-The multi-objective evaluation maps competing factors into a scalar objective with severe penalty barriers for constraint violations:
+## 🧬 How It Works
 
-$$\text{Fitness}(\mathcal{C}) = w_{cov} \cdot C_{score} - w_{energy} \cdot E_{total} - w_{time} \cdot T_{mission} - w_{hazard} \cdot H_{exposure} - \mathcal{P}_{violations}$$
+### 1. Hybrid Chromosome
+Each candidate solution encodes the entire fleet using three intuitive segments:
+* **Waypoints (Continuous $x, y$):** 5 coordinates per drone inside `[0, 49]`. Continuous coordinates allow smooth turns around obstacles.
+* **Speed Profile:** Speeds of `1.0`, `2.0`, or `3.0` cells/s per leg. Higher speeds cover distance faster but consume battery non-linearly ($E \propto v^2$).
+* **Sensor Schedules:** Binary `1` (ON, 4-cell scan radius) or `0` (OFF, standby mode to save battery across transit paths).
 
-Where:
-- **$C_{score}$:** Aggregate disaster priority score of all unique grid cells scanned by the fleet:
-  $$C_{score} = \sum_{(x,y) \in \bigcup \text{Footprint}(UAV_i)} \text{Priority}(x, y)$$
-- **$E_{total}$:** Cumulative propulsion and sensor energy consumption across all drones:
-  $$E_{total} = \sum_{d=1}^{N} \sum_{leg} \Big[ L_{leg} \cdot (c_{base} + c_v \cdot v^2) \cdot (1 + \mu_h \cdot \bar{h}_{leg}) + s_{leg} \cdot P_{sensor} \cdot t_{leg} \Big]$$
-- **$T_{mission}$:** Fleet makespan (maximum mission duration among all UAVs):
-  $$T_{mission} = \max_{d \in \{1..N\}} \sum_{leg} \frac{L_{leg}}{v_{leg}}$$
-- **$H_{exposure}$:** Cumulative environmental risk (wind turbulence, radiation exposure):
-  $$H_{exposure} = \sum_{d=1}^{N} \sum_{leg} \bar{h}_{leg} \cdot t_{leg}$$
-- **$\mathcal{P}_{violations}$:** Dynamic penalty barrier enforcing zero NFZ collisions and battery headroom:
-  $$\mathcal{P}_{violations} = \lambda_{NFZ} \cdot N_{NFZ\_collisions} + \lambda_{batt} \cdot \sum_{d=1}^N \max(0, E_d - E_{max})$$
+### 2. Multi-Objective Fitness
+$$\text{Fitness} = (\text{Coverage}) - (\text{Energy}) - (\text{Flight Time}) - (\text{Hazard Exposure}) - \text{Penalties}$$
+* **Redundant Scan Elimination:** Overlapping scans yield zero extra points, forcing drones to explore separate sectors.
+* **Two-Tier Constraint Handling:** Invalid coordinates landing in obstacles are proactively repaired to the nearest free cell. Any flight leg clipping a No-Fly Zone receives a severe penalty (-600 pts).
 
 ---
 
-### 2.3 Tailored Genetic Operators
-- **Selection:** Tournament selection ($k=3$) combined with strict **Elitism ($E=2$)**, preventing premature genetic drift while preserving elite routes.
-- **Crossover:**
-  - *Geometric Waypoint Blending:* Produces interpolated spatial coordinates between parent paths:
-    $$w_{child} = \alpha \cdot w_{p1} + (1 - \alpha) \cdot w_{p2}, \quad \alpha \sim U(0.2, 0.8)$$
-  - *Segment Swapping:* Exchanges sub-tours between drones to combine high-performing local search trajectories.
-  - *Uniform Velocity & Sensor Crossover:* Exchanges speed and sensor genes independently.
-- **Mutation:**
-  - *Spatial Gaussian Jitter:* Perturbs coordinates: $\Delta x, \Delta y \sim \mathcal{N}(0, \sigma^2)$ ($\sigma = 3.5$ cells).
-  - *Waypoint Reordering Swap:* Inverts waypoint visit order to untangle self-intersecting loops.
-  - *Categorical Mutation:* Bit-flips sensor states ($0 \leftrightarrow 1$) and mutates velocity levels.
-- **Constraint Handling (Repair Operator):** Clamps coordinates to valid mission boundaries and actively shifts waypoints situated inside No-Fly Zones to the nearest obstacle-free coordinate before evaluation.
+## 📊 Visual Results & Outputs
+
+### 1. Evolved UAV Fleet Flight Paths
+The 3 UAVs diverge cleanly from base `(0, 0)` into separate sectors with **zero obstacle crashes**:
+* **Drone 1 (Blue):** Navigates around the western obstacle to cover the Northwest survivor zone.
+* **Drone 2 (Pink):** Sweeps the Northeast disaster cluster while maintaining safe clearance from restricted airspace.
+* **Drone 3 (Orange):** Covers the Southern cluster and powers sensors OFF during transit home to conserve battery.
+
+<p align="center">
+  <img src="outputs/final_flight_paths.png" alt="Final Flight Paths" width="750"/>
+</p>
 
 ---
 
-## 3. Repository Structure
+### 2. Generational Evolution
+Shows how the fleet transitions from completely random paths to organized, obstacle-free reconnaissance:
+* **Generation 1:** Chaotic random paths with 6 No-Fly Zone collisions.
+* **Generation 30:** Drones partition the map into distinct operational corridors.
+* **Generation 60:** Clean, coordinated multi-drone sweeps with 0 collisions.
 
-```
+<p align="center">
+  <img src="outputs/generational_evolution.png" alt="Generational Evolution" width="850"/>
+</p>
+
+---
+
+### 3. Fitness Convergence & Energy Trends
+The fleet clears all penalties within the first 10 generations, stabilizing at **533 kJ** of energy and a **97-second** mission completion time.
+
+<p align="center">
+  <img src="outputs/fitness_convergence.png" alt="Fitness Convergence" width="850"/>
+</p>
+
+---
+
+### 4. Genetic Algorithm vs. Baseline Random Search
+Under an identical budget of 3,000 evaluations, Random Search fails completely due to repeated collisions and battery overruns, while the GA achieves optimal fitness.
+
+<p align="center">
+  <img src="outputs/baseline_comparison.png" alt="Baseline Comparison" width="700"/>
+</p>
+
+| Metric | Genetic Algorithm Engine | Baseline Random Search | Performance Advantage |
+| :--- | :---: | :---: | :--- |
+| **Best Fitness Score** | **+1,476.52** | -46,261.57 | **+47,738 pts (GA Superior)** |
+| **Priority Coverage** | 1,414.40 pts | 1,464.23 pts | Coordinated sweep vs uncontrolled |
+| **Total Fleet Energy** | **533.27 kJ** | 748.52 kJ | **28.8% Energy Saved** |
+| **Mission Flight Time** | **97.25 s** | 128.10 s | **24.1% Faster Completion** |
+| **Obstacle (NFZ) Collisions** | **0 (Zero)** | 6 Collisions | **100% Collision-Free Safety** |
+| **Battery Overrun** | **0.00 kJ (Safe)** | 88.52 kJ Overdraft | Drones return safely to base |
+| **Runtime** | **9.44 s** | 11.90 s | GA converges 20.7% faster |
+
+---
+
+### 5. Hyperparameter Sensitivity Analysis
+Evaluates the impact of varying Population Size, Mutation Rate, and Tournament Selection Pressure:
+
+<p align="center">
+  <img src="outputs/hyperparameter_sensitivity.png" alt="Hyperparameter Sensitivity" width="850"/>
+</p>
+
+* **Population Size (20, 50, 100):** $N = 50$ offers the best trade-off between population diversity and fast runtime (<10 s).
+* **Mutation Rate (0.05, 0.15, 0.30):** $P_m = 0.15$ strikes the optimal balance between spatial exploration and path refinement.
+* **Selection Pressure ($k = 2, 3, 5$):** Tournament size $k = 3$ ensures steady elitist progress without premature gene pool homogenization.
+
+---
+
+## 📁 Repository Structure
+
+```text
 uav_disaster_ga/
 │
-├── config.py                 # Mission parameters, physical constants & GA hyperparameters
-├── environment.py            # 50x50 2D Discretized grid, hazard fields, and NFZ definitions
-├── chromosome.py             # Hybrid multi-segment chromosome class & trajectory decoders
-├── genetic_algorithm.py      # Core GA engine (Tournament, Crossover, Mutation, Repair)
-├── baseline_random.py        # Random Search baseline optimizer for rigorous benchmarking
-├── visualizer.py             # Publication-ready Matplotlib plotting and mapping routines
-├── main.py                   # Single GA run demonstration script with console metrics
-├── run_experiments.py        # Full experimental suite (GA vs Random + Sensitivity Analysis)
+├── config.py                 # Mission parameters, grid specs, and GA hyperparameters
+├── environment.py            # 50x50 grid map, hazard fields, and No-Fly Zones (NFZs)
+├── chromosome.py             # UAVChromosome hybrid encoding & trajectory decoding
+├── genetic_algorithm.py      # Core GA engine (Selection, Crossover, Mutation, Repair)
+├── baseline_random.py        # Random Search baseline optimizer for benchmarking
+├── visualizer.py             # Matplotlib visualizer for route maps and convergence curves
+├── main.py                   # Single GA simulation run script
+├── run_experiments.py        # Automated test suite (GA vs. Random + Sensitivity Analysis)
 ├── requirements.txt          # Python dependencies (numpy, matplotlib)
-└── README.md                 # System documentation & technical guide
 │
-└── outputs/                  # Auto-generated visualization assets & benchmark summaries
-    ├── fitness_convergence.png
+└── outputs/                  # Auto-generated experiment visual graphs
     ├── final_flight_paths.png
     ├── generational_evolution.png
+    ├── fitness_convergence.png
     ├── baseline_comparison.png
     ├── hyperparameter_sensitivity.png
     ├── experiment_results.json
     └── experiment_summary.txt
-```
-
----
-
-## 4. Installation & Setup
-
-### Prerequisites
-- Python 3.10, 3.11, or 3.12
-- `pip` package manager
-
-### 1. Clone or Navigate to Repository
-```bash
-git clone <your-repo-link>
-cd uav_disaster_ga
-```
-
-### 2. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## 5. Execution Guide
-
-### Option A: Standard Single Simulation
-To execute the primary Genetic Algorithm optimization and visualize the resulting fleet trajectory:
-```bash
-python main.py
-```
-*Outputs generated in `outputs/`:*
-- `fitness_convergence.png`: Best vs. Average fitness and multi-metric progression.
-- `final_flight_paths.png`: 2D operational disaster map displaying UAV routes, sensor active sweeps, hazards, and NFZs.
-- `generational_evolution.png`: Trajectory progression across Gen 1, Mid-Gen, and Final Gen.
-
-### Option B: Comprehensive Experimentation Suite
-To run the full suite required for the **Technical Report** (including Random Search benchmark and hyperparameter sensitivity curves):
-```bash
-python run_experiments.py
-```
-*Outputs generated in `outputs/`:*
-- `baseline_comparison.png`: Direct performance comparison of GA vs. Random Search.
-- `hyperparameter_sensitivity.png`: 3-panel sensitivity curves evaluating Population Size, Mutation Rate, and Tournament Pressure.
-- `experiment_results.json`: Raw numerical metrics for every experiment.
-- `experiment_summary.txt`: Ready-to-copy summary tables and comparative analysis.
-
-### Option C: Compile Publication-Quality PDF Report
-To generate the formal 5-page PDF Technical Report with all figures, equations, and tables embedded:
-```bash
-python generate_pdf_report.py
-```
-*Output generated:* `UAV_Disaster_Management_Technical_Report.pdf` (5-page submission document).
-
----
-
-## 6. Generated Visualizations Overview
-
-| Output File | Description |
-| :--- | :--- |
-| **`fitness_convergence.png`** | Demonstrates fitness growth, priority coverage saturation, and energy stability. |
-| **`final_flight_paths.png`** | High-contrast map detailing UAV flight paths, sensor radius sweeps, hazard avoidance, and NFZ clearance. |
-| **`generational_evolution.png`** | Visual progression demonstrating how random chaotic trajectories evolve into organized fleet sweeps. |
-| **`baseline_comparison.png`** | Empirically proves GA superiority over uniform random sampling under identical evaluation budgets. |
-| **`hyperparameter_sensitivity.png`** | Analyzes the sensitivity of varying population size ($N$), mutation rate ($P_m$), and tournament size ($k$). |
-
----
-
-## 7. License & Credits
-Developed as an AI Engineering Team project for Autonomous UAV Disaster Management & Multi-Objective Optimization. Released under the MIT License.
